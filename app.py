@@ -1,46 +1,69 @@
 import streamlit as st
+from streamlit_drawable_canvas import st_canvas
+from PIL import Image
 import numpy as np
 import pandas as pd
-from PIL import Image
 import io
 
-st.title("🔢 Neural Network Pixel Visualizer")
+st.set_page_config(page_title="28x28 Pixel Lab", layout="centered")
+st.title("🔢 28x28 Image & Drawing Processor")
 
-# Sidebar for Input Method
-option = st.sidebar.selectbox("Choose Input Method", ("Upload Image", "Manual Number Entry"))
+# 1. Sidebar Selection
+option = st.sidebar.radio("Input Method", ("Draw Number", "Upload Image"))
 
-def process_image(img):
-    # Resize to 28x28 and convert to grayscale
-    img = img.convert('L').resize((28, 28))
-    return np.array(img)
+def process_to_28x28(img_input):
+    """Resizes and converts any image input to a 28x28 grayscale array."""
+    # Convert to grayscale ('L' mode) and resize
+    img_resized = img_input.convert('L').resize((28, 28))
+    return np.array(img_resized)
 
-grid_data = np.zeros((28, 28))
+# 2. Input Logic
+pixel_data = None
 
-if option == "Upload Image":
-    uploaded_file = st.file_uploader("Upload a digit image...", type=["jpg", "png", "jpeg"])
-    if uploaded_file:
-        image = Image.open(uploaded_file)
-        grid_data = process_image(image)
+if option == "Draw Number":
+    st.subheader("Draw a digit (0-9)")
+    canvas_result = st_canvas(
+        stroke_width=18,
+        stroke_color="#FFFFFF",
+        background_color="#000000",
+        height=280,
+        width=280,
+        drawing_mode="freedraw",
+        key="canvas",
+    )
+    if canvas_result.image_data is not None:
+        # Canvas data is RGBA, convert to PIL
+        raw_img = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
+        pixel_data = process_to_28x28(raw_img)
 
 else:
-    val = st.number_input("Enter a brightness value (0-255) for a sample pattern:", 0, 255, 100)
-    # Create a simple diagonal pattern for visualization
-    grid_data = np.eye(28) * val
+    st.subheader("Upload an image")
+    uploaded_file = st.file_uploader("Choose a file...", type=["jpg", "png", "jpeg"])
+    if uploaded_file:
+        raw_img = Image.open(uploaded_file)
+        pixel_data = process_to_28x28(raw_img)
+        st.image(raw_img, caption="Original Upload", width=200)
 
-# Pixel Visualization
-st.subheader("28 x 28 Pixel Grid")
-st.image(grid_data, width=300, caption="Rescaled 28x28 Input")
+# 3. Visualization & Download
+if pixel_data is not None:
+    st.divider()
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.write("**Processed 28x28 View**")
+        # Upscale slightly for visibility in browser
+        st.image(pixel_data, width=150)
+        
+    with col2:
+        st.write("**Pixel Matrix**")
+        df = pd.DataFrame(pixel_data)
+        st.dataframe(df, height=150)
 
-# Show raw pixel values as a dataframe
-if st.checkbox("Show Raw Pixel Data"):
-    st.write(pd.DataFrame(grid_data))
-
-# Download Option
-df = pd.DataFrame(grid_data)
-csv = df.to_csv(index=False).encode('utf-8')
-st.download_button(
-    label="Download Pixel Data as CSV",
-    data=csv,
-    file_name='pixel_data.csv',
-    mime='text/csv',
-)
+    # Download Button
+    csv = df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="📥 Download 28x28 Pixel CSV",
+        data=csv,
+        file_name='digit_data.csv',
+        mime='text/csv',
+    )
