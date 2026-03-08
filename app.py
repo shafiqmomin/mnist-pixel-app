@@ -7,12 +7,12 @@ import plotly.express as px
 
 st.set_page_config(page_title="28x28 Pixel Lab", layout="wide")
 
-st.title("🔢 28x28 Pixel Visualizer")
-st.write("Upload an image or draw a number to see its pixel matrix.")
+st.title("🔢 28x28 Pixel Visualizer & Flattener")
+st.write("Draw or upload to get a **single line** of 784 pixel values.")
 
 # --- Sidebar Configuration ---
-st.sidebar.header("Input Settings")
-mode = st.sidebar.radio("Select Input Mode:", ("Draw a Number", "Upload Image"))
+st.sidebar.header("Settings")
+mode = st.sidebar.radio("Input Mode:", ("Draw a Number", "Upload Image"))
 
 def process_image(img):
     """Convert any PIL image to 28x28 grayscale array."""
@@ -23,9 +23,8 @@ pixel_data = None
 
 # --- Input Section ---
 if mode == "Draw a Number":
-    st.subheader("Draw on the canvas")
+    st.subheader("Draw on the 280x280 Canvas")
     canvas_result = st_canvas(
-        fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=20,
         stroke_color="#FFFFFF",
         background_color="#000000",
@@ -39,39 +38,41 @@ if mode == "Draw a Number":
         pixel_data = process_image(raw_img)
 
 else:
-    st.subheader("Upload your image")
+    st.subheader("Upload Image")
     uploaded_file = st.file_uploader("Choose a file...", type=["jpg", "png", "jpeg"])
     if uploaded_file:
         raw_img = Image.open(uploaded_file)
-        st.image(raw_img, caption="Original Uploaded Image", width=200)
         pixel_data = process_image(raw_img)
 
-# --- Visualization Section ---
+# --- Processing & Output ---
 if pixel_data is not None:
     st.divider()
-    col1, col2 = st.columns([1, 1])
+    
+    # 1. FLATTEN THE DATA
+    # Reshape from (28, 28) to (1, 784)
+    flattened_row = pixel_data.reshape(1, -1)
+    flattened_df = pd.DataFrame(flattened_row)
 
+    # 2. SHOW THE SINGLE LINE
+    st.subheader("Raw Pixel Line (1 x 784)")
+    st.write("This single row represents your entire image for a Neural Network:")
+    st.dataframe(flattened_df, hide_index=True)
+
+    # 3. VISUALIZATION
+    col1, col2 = st.columns([1, 1])
     with col1:
-        st.subheader("Heatmap Visualization")
-        # px.imshow makes the 28x28 grid large and interactive
-        fig = px.imshow(
-            pixel_data, 
-            color_continuous_scale='gray',
-            labels=dict(x="Pixel X", y="Pixel Y", color="Brightness")
-        )
+        st.subheader("Heatmap View")
+        fig = px.imshow(pixel_data, color_continuous_scale='gray')
         fig.update_layout(coloraxis_showscale=False, margin=dict(l=0, r=0, b=0, t=0))
         st.plotly_chart(fig, use_container_width=True)
 
     with col2:
-        st.subheader("Raw Pixel Data (0-255)")
-        df = pd.DataFrame(pixel_data)
-        st.dataframe(df, height=350)
-
-        # Download Logic
-        csv = df.to_csv(index=False).encode('utf-8')
+        st.subheader("Download Options")
+        # CSV of the flattened row
+        csv_flat = flattened_df.to_csv(index=False, header=False).encode('utf-8')
         st.download_button(
-            label="📥 Download Pixel CSV",
-            data=csv,
-            file_name='pixel_data.csv',
+            label="📥 Download Single-Line CSV",
+            data=csv_flat,
+            file_name='flattened_pixels.csv',
             mime='text/csv',
         )
