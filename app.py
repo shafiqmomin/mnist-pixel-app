@@ -3,27 +3,30 @@ from streamlit_drawable_canvas import st_canvas
 from PIL import Image
 import numpy as np
 import pandas as pd
-import io
+import plotly.express as px
 
-st.set_page_config(page_title="28x28 Pixel Lab", layout="centered")
-st.title("🔢 28x28 Image & Drawing Processor")
+st.set_page_config(page_title="28x28 Pixel Lab", layout="wide")
 
-# 1. Sidebar Selection
-option = st.sidebar.radio("Input Method", ("Draw Number", "Upload Image"))
+st.title("🔢 28x28 Pixel Visualizer")
+st.write("Upload an image or draw a number to see its pixel matrix.")
 
-def process_to_28x28(img_input):
-    """Resizes and converts any image input to a 28x28 grayscale array."""
-    # Convert to grayscale ('L' mode) and resize
-    img_resized = img_input.convert('L').resize((28, 28))
-    return np.array(img_resized)
+# --- Sidebar Configuration ---
+st.sidebar.header("Input Settings")
+mode = st.sidebar.radio("Select Input Mode:", ("Draw a Number", "Upload Image"))
 
-# 2. Input Logic
+def process_image(img):
+    """Convert any PIL image to 28x28 grayscale array."""
+    img_gray = img.convert('L').resize((28, 28))
+    return np.array(img_gray)
+
 pixel_data = None
 
-if option == "Draw Number":
-    st.subheader("Draw a digit (0-9)")
+# --- Input Section ---
+if mode == "Draw a Number":
+    st.subheader("Draw on the canvas")
     canvas_result = st_canvas(
-        stroke_width=18,
+        fill_color="rgba(255, 165, 0, 0.3)",
+        stroke_width=20,
         stroke_color="#FFFFFF",
         background_color="#000000",
         height=280,
@@ -32,38 +35,43 @@ if option == "Draw Number":
         key="canvas",
     )
     if canvas_result.image_data is not None:
-        # Canvas data is RGBA, convert to PIL
         raw_img = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
-        pixel_data = process_to_28x28(raw_img)
+        pixel_data = process_image(raw_img)
 
 else:
-    st.subheader("Upload an image")
+    st.subheader("Upload your image")
     uploaded_file = st.file_uploader("Choose a file...", type=["jpg", "png", "jpeg"])
     if uploaded_file:
         raw_img = Image.open(uploaded_file)
-        pixel_data = process_to_28x28(raw_img)
-        st.image(raw_img, caption="Original Upload", width=200)
+        st.image(raw_img, caption="Original Uploaded Image", width=200)
+        pixel_data = process_image(raw_img)
 
-# 3. Visualization & Download
+# --- Visualization Section ---
 if pixel_data is not None:
     st.divider()
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.write("**Processed 28x28 View**")
-        # Upscale slightly for visibility in browser
-        st.image(pixel_data, width=150)
-        
-    with col2:
-        st.write("**Pixel Matrix**")
-        df = pd.DataFrame(pixel_data)
-        st.dataframe(df, height=150)
+    col1, col2 = st.columns([1, 1])
 
-    # Download Button
-    csv = df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="📥 Download 28x28 Pixel CSV",
-        data=csv,
-        file_name='digit_data.csv',
-        mime='text/csv',
-    )
+    with col1:
+        st.subheader("Heatmap Visualization")
+        # px.imshow makes the 28x28 grid large and interactive
+        fig = px.imshow(
+            pixel_data, 
+            color_continuous_scale='gray',
+            labels=dict(x="Pixel X", y="Pixel Y", color="Brightness")
+        )
+        fig.update_layout(coloraxis_showscale=False, margin=dict(l=0, r=0, b=0, t=0))
+        st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        st.subheader("Raw Pixel Data (0-255)")
+        df = pd.DataFrame(pixel_data)
+        st.dataframe(df, height=350)
+
+        # Download Logic
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Download Pixel CSV",
+            data=csv,
+            file_name='pixel_data.csv',
+            mime='text/csv',
+        )
